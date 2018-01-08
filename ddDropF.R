@@ -1,79 +1,134 @@
 library(Seurat, lib.loc = '~/R/x86_64-pc-linux-gnu-library/3.4/Seurat2.1')
 library(Matrix)
 library(dplyr)
-############################################################################################
-# Start from Fluidigm and Merged ddSeq-DropSeq Seurat objects
+setwd("~/R/Projects/Seurat")
+#####################################################################################
+# Read in files
+#####################################################################################
+# Load filtered/normalized Seurat Objects from DropSeq/Robj and ddSeq/Robj
+# DS50_UCH1, DS52_UCH1_HS_TB, DS52_UCH1_RT_ID
+# Seq2_N706, Seq3_N707
+ddSeq_293HEK_Seq1_N701 <- readRDS("Robj/ddSeq/ddSeq_293HEK_Seq1_N701.Robj")
+ddSeq_UCH2_Seq1_N704 <- readRDS("Robj/ddSeq/ddSeq_UCH2_Seq1_N704.Robj")
+ddSeq_UCH1_Seq2_N706 <- readRDS("Robj/ddSeq/ddSeq_UCH1_Seq2_N706.Robj")
+ddSeq_UCH1_Seq3_N707 <- readRDS("Robj/ddSeq/ddSeq_UCH1_Seq3_N707.Robj")
+
+DropSeq_293HEK_OP_DS9 <- readRDS("Robj/DropSeq/DropSeq_293HEK_OP_DS9.Robj")
+DropSeq_293HEK_NO_DS9 <- readRDS("Robj/DropSeq/DropSeq_293HEK_NO_DS9.Robj")
+DropSeq_293HEK_DS34 <- readRDS("Robj/DropSeq/DropSeq_293HEK_OP_DS34.Robj")
+DropSeq_293HEK_DS45 <- readRDS("Robj/DropSeq/DropSeq_293HEK_OP_DS45.Robj")
+DropSeq_UCH2_DS49 <- readRDS("Robj/DropSeq/DropSeq_UCH2_DS49.Robj")
+DropSeq_UCH1_DS50 <- readRDS("Robj/DropSeq/DropSeq_UCH1_DS50.Robj")
+DropSeq_UCH1_DS52_RT_ID <- readRDS("Robj/DropSeq/DropSeq_UCH1_RT_ID_DS52.Robj")
+DropSeq_UCH1_DS52_HS_TB <- readRDS("Robj/DropSeq/DropSeq_UCH1_HS_TB_DS52.Robj")
+
 Fluidigm <- readRDS(file = '~/R/Projects/Seurat/Fluidigm/Fluidigm_human.Robj')
-mega_seurat <- readRDS(file = '~/R/Projects/Seurat/Robj/ddDrop_mega_seurat_v2.1.Robj')
-mega_seurat <- MergeSeurat(object1 = mega_seurat, object2 = Fluidigm, 
+#####################################################
+# Merge and compare all samples
+ddSeq <- MergeSeurat(object1 = ddSeq_293HEK_Seq1_N701, object2 = ddSeq_UCH2_Seq1_N704, 
+                     add.cell.id1 = "S1_N701", add.cell.id2 = "S1_N704")
+ddSeq <- MergeSeurat(object1 = ddSeq, object2 = ddSeq_UCH1_Seq2_N706, 
+                     add.cell.id2 = "S2_N706")
+ddSeq <- MergeSeurat(object1 = ddSeq, object2 = ddSeq_UCH1_Seq3_N707, 
+                     add.cell.id2 = "S3_N707", project = "ddSeq")
+
+DropSeq <- MergeSeurat(object1 = DropSeq_293HEK_OP_DS9, object2 = DropSeq_293HEK_NO_DS9, 
+                       add.cell.id1 = "DS9_OP", add.cell.id2 = "DS9_NO")
+DropSeq <- MergeSeurat(object1 = DropSeq, object2 = DropSeq_293HEK_DS34, 
+                       add.cell.id2 = "DS34")
+DropSeq <- MergeSeurat(object1 = DropSeq, object2 = DropSeq_293HEK_DS45, 
+                       add.cell.id2 = "DS45")
+DropSeq <- MergeSeurat(object1 = DropSeq, object2 = DropSeq_UCH2_DS49, 
+                       add.cell.id2 = "DS49")
+DropSeq <- MergeSeurat(object1 = DropSeq, object2 = DropSeq_UCH1_DS50, 
+                       add.cell.id2 = "DS50")
+DropSeq <- MergeSeurat(object1 = DropSeq, object2 = DropSeq_UCH1_DS52_RT_ID, 
+                       add.cell.id2 = "DS50_RTID")
+DropSeq <- MergeSeurat(object1 = DropSeq, object2 = DropSeq_UCH1_DS52_HS_TB, 
+                       add.cell.id2 = "DS50_HSTB", project = "DropSeq")
+
+table(ddSeq@meta.data$orig.ident)
+table(DropSeq@meta.data$orig.ident)
+
+# You can focus on one technology or analyze all of them
+ddDrop <- MergeSeurat(object1 = ddSeq, object2 = DropSeq)
+table(ddDrop@meta.data$orig.ident)
+saveRDS(ddDrop, file = '~/R/Projects/Seurat/Robj/ddDrop.Robj')
+#ddDrop <- readRDS(file='~/R/Projects/Seurat/Robj/ddDrop.Robj')
+
+# Fix fluidigm
+ddDropF <- MergeSeurat(object1 = ddDrop, object2 = Fluidigm, 
                        add.cell.id2 = "flu")
+table(ddDropF@meta.data$orig.ident)
+
+
 
 # Normalize data to a total of 10,000 molecules 
-mega_seurat <- NormalizeData(object = mega_seurat,normalization.method = "LogNormalize", scale.factor = 10000)
+ddDropF <- NormalizeData(object = ddDropF, normalization.method = "LogNormalize", scale.factor = 10000)
 # Focus on variable genes (default parameter settings for a 1e4 molecule normalization)
-mega_seurat <- FindVariableGenes(object = mega_seurat, mean.function = ExpMean, dispersion.function = LogVMR, 
+ddDropF <- FindVariableGenes(object = ddDropF, mean.function = ExpMean, dispersion.function = LogVMR, 
                                  do.plot = TRUE, x.low.cutoff = 0.0125, x.high.cutoff = 3, y.cutoff = 0.5)
-length(x = mega_seurat@var.genes)
+length(x = ddDropF@var.genes)
 # Regress uninteresting signals out of analysis. nUMI: number of detected molecules per cell
-mega_seurat <- ScaleData(object = mega_seurat, vars.to.regress = c("nUMI", "percent.mito"))
+ddDropF <- ScaleData(object = ddDropF, vars.to.regress = c("nUMI", "percent.mito"))
 
 # Run Dimension reduction
-mega_seurat <- RunPCA(object = mega_seurat, pc.genes = mega_seurat@var.genes, 
+ddDropF <- RunPCA(object = ddDropF, pc.genes = ddDropF@var.genes, 
                       do.print = TRUE, pcs.print = 1:12, genes.print = 5, pcs.compute = 20)
-PCElbowPlot(object = mega_seurat)
-#mega_seurat <- JackStraw(object = mega_seurat, num.replicate = 50, do.print = FALSE)
-#JackStrawPlot(object = mega_seurat, PCs = 1:20)
-saveRDS(mega_seurat, file = '~/R/Projects/Seurat/Robj/ddFDrop_backup.Robj')
-mega_seurat <- readRDS(file='~/R/Projects/Seurat/Robj/ddFDrop_backup.Robj')
+PCElbowPlot(object = ddDropF)
+#ddDropF <- JackStraw(object = ddDropF, num.replicate = 50, do.print = FALSE)
+#JackStrawPlot(object = ddDropF, PCs = 1:20)
+saveRDS(ddDropF, file = '~/R/Projects/Seurat/Robj/ddFDrop_backup.Robj')
+ddDropF <- readRDS(file='~/R/Projects/Seurat/Robj/ddFDrop_backup.Robj')
 
 
 
-mega_seurat <- FindClusters(object = mega_seurat, reduction.type = "pca", dims.use = 1:8, 
+ddDropF <- FindClusters(object = ddDropF, reduction.type = "pca", dims.use = 1:8, 
                             resolution = 0.4, save.SNN = TRUE, force.recalc = TRUE)
-mega_seurat <- RunTSNE(object = mega_seurat, dims.use = 1:8, 
+ddDropF <- RunTSNE(object = ddDropF, dims.use = 1:8, 
                        do.fast = TRUE, perplexity = 40)
-t <- TSNEPlot(object = mega_seurat, do.return = TRUE, do.label=TRUE)
+t <- TSNEPlot(object = ddDropF, do.return = TRUE, do.label=TRUE)
 t + ggtitle('ddDropF tSNE 19dim 40perplexity 7.5k varGenes v2.1')
 
-mega_seurat <- StashIdent(object = mega_seurat, save.name = "findClusters")
+ddDropF <- StashIdent(object = ddDropF, save.name = "findClusters")
 # Next, switch the identity class of all cells to reflect replicate ID
-mega_seurat <- SetAllIdent(object = mega_seurat, id = "orig.ident")
-mega_seurat <- StashIdent(object = mega_seurat, save.name = "adj.ident")
-mega_seurat@meta.data$adj.ident[c(grep("COL0[1-9]", mega_seurat@meta.data$adj.ident), # first 10 columns.
-                                  grep("COL10", mega_seurat@meta.data$adj.ident) ) ] <-rep("Fluidigm-HEK", 112)
-mega_seurat@meta.data$adj.ident[c(grep("COL1[1-9]", mega_seurat@meta.data$adj.ident), # last 10 columns.
-                                  grep("COL20", mega_seurat@meta.data$adj.ident) ) ] <-rep("Fluidigm-uch1", 118)
-mega_seurat <- SetAllIdent(object = mega_seurat, id = "adj.ident")
+ddDropF <- SetAllIdent(object = ddDropF, id = "orig.ident")
+ddDropF <- StashIdent(object = ddDropF, save.name = "adj.ident")
+ddDropF@meta.data$adj.ident[c(grep("COL0[1-9]", ddDropF@meta.data$adj.ident), # first 10 columns.
+                                  grep("COL10", ddDropF@meta.data$adj.ident) ) ] <-rep("Fluidigm-HEK", 112)
+ddDropF@meta.data$adj.ident[c(grep("COL1[1-9]", ddDropF@meta.data$adj.ident), # last 10 columns.
+                                  grep("COL20", ddDropF@meta.data$adj.ident) ) ] <-rep("Fluidigm-uch1", 118)
+ddDropF <- SetAllIdent(object = ddDropF, id = "adj.ident")
 
-FeaturePlot(object = mega_seurat, features.plot = "T", cols.use = c("dark grey", "red"), 
+FeaturePlot(object = ddDropF, features.plot = "T", cols.use = c("dark grey", "red"), 
             reduction.use = "tsne", dark.theme = TRUE)
 
 # manually add fluidigm IDs
-mega_seurat@meta.data$celltype[2076:2203] <- "HEK"
-mega_seurat@meta.data$celltype[2204:2475] <- "uch1"
-levels(mega_seurat@meta.data$tech) <- c("ddSeq", "DropSeq", "Fluidigm")
-mega_seurat@meta.data$tech[2076:2475] <- "Fluidigm"
+ddDropF@meta.data$celltype[2076:2203] <- "HEK"
+ddDropF@meta.data$celltype[2204:2475] <- "uch1"
+levels(ddDropF@meta.data$tech) <- c("ddSeq", "DropSeq", "Fluidigm")
+ddDropF@meta.data$tech[2076:2475] <- "Fluidigm"
 
-mega_seurat@meta.data$class <- as.factor(paste(mega_seurat@meta.data$tech, 
-                                     mega_seurat@meta.data$celltype, sep='-')) 
+ddDropF@meta.data$class <- as.factor(paste(ddDropF@meta.data$tech, 
+                                     ddDropF@meta.data$celltype, sep='-')) 
 
 ############################################################################################
 
-#saveRDS(mega_seurat, file = '~/R/Projects/Seurat/Robj/dd_f_drop.Robj')
-#mega_seurat <- readRDS(file='~/R/Projects/Seurat/Robj/dd_f_drop.Robj')
+#saveRDS(ddDropF, file = '~/R/Projects/Seurat/Robj/dd_f_drop.Robj')
+#ddDropF <- readRDS(file='~/R/Projects/Seurat/Robj/dd_f_drop.Robj')
 
 ######################
 # Explain DS52 far subcluster
-DS52_mini <- TSNEPlot(object = mega_seurat, do.identify = TRUE)
-DS52_big <- TSNEPlot(object = mega_seurat, do.identify = TRUE) #careful of the nearby fluidigm
+DS52_mini <- TSNEPlot(object = ddDropF, do.identify = TRUE)
+DS52_big <- TSNEPlot(object = ddDropF, do.identify = TRUE) #careful of the nearby fluidigm
 
-mega_seurat <- SetIdent(object = mega_seurat, cells.use = DS52_mini, ident.use = "DS52_mini")
-mega_seurat <- SetIdent(object = mega_seurat, cells.use = DS52_big, ident.use = "DS52_big")
-DS52.mark <- FindMarkers(object = mega_seurat, ident.1 = 'DS52_mini', ident.2 = 'DS52_big', min.pct = 0.25)
+ddDropF <- SetIdent(object = ddDropF, cells.use = DS52_mini, ident.use = "DS52_mini")
+ddDropF <- SetIdent(object = ddDropF, cells.use = DS52_big, ident.use = "DS52_big")
+DS52.mark <- FindMarkers(object = ddDropF, ident.1 = 'DS52_mini', ident.2 = 'DS52_big', min.pct = 0.25)
 DS52.mark$genes <- rownames(DS52.mark)
-FeaturePlot(object = mega_seurat, features.plot = c("MALAT1", "CSPG4", "OLFML2A", "SLC4A11", "PALLD", "APOE"), 
+FeaturePlot(object = ddDropF, features.plot = c("MALAT1", "CSPG4", "OLFML2A", "SLC4A11", "PALLD", "APOE"), 
             cols.use = c("dark grey", "red"), reduction.use = "tsne", dark.theme = TRUE)
-FeaturePlot(object = mega_seurat, features.plot = c("MT-ATP8", "MLEC", "MT-CO1", "DNAJC8", "OMD", "GLIPR1"), cols.use = c("dark grey", "red"), 
+FeaturePlot(object = ddDropF, features.plot = c("MT-ATP8", "MLEC", "MT-CO1", "DNAJC8", "OMD", "GLIPR1"), cols.use = c("dark grey", "red"), 
             reduction.use = "tsne", dark.theme = TRUE)
 DS52.geneSet <- arrange(DS52.mark[DS52.mark$p_val_adj<0.05,], p_val_adj)$genes
 write.table(DS52.geneSet, col.names=FALSE, quote=FALSE, row.names=FALSE,
@@ -88,32 +143,32 @@ saveRDS(DS52.mark, file = '~/R/Projects/Seurat/Meeting4/DE_clusters/DS52_markers
 
 ###################################################################################
 # ddSeq vs. DropSeq
-mega_seurat <- SetAllIdent(object = mega_seurat, id = "tech")
-markers <- FindMarkers(object = mega_seurat, ident.1 = 'ddSeq', 
+ddDropF <- SetAllIdent(object = ddDropF, id = "tech")
+markers <- FindMarkers(object = ddDropF, ident.1 = 'ddSeq', 
                        ident.2 = 'DropSeq', min.pct = 0.25)
-FeaturePlot(object = mega_seurat, features.plot = c("MALAT1","MT-RNR2","RPS29","RPL39"), 
+FeaturePlot(object = ddDropF, features.plot = c("MALAT1","MT-RNR2","RPS29","RPL39"), 
             cols.use = c("dark grey", "red"), reduction.use = "tsne", dark.theme = TRUE)
-FeaturePlot(object = mega_seurat, features.plot = c("ENO1","CAPNS1","IRAK1","SQSTM1"), 
+FeaturePlot(object = ddDropF, features.plot = c("ENO1","CAPNS1","IRAK1","SQSTM1"), 
             cols.use = c("dark grey", "red"), reduction.use = "tsne", dark.theme = TRUE)
 write.table(rownames(markers[markers$p_val_adj<0.05,]), 
             col.names=FALSE, quote=FALSE, row.names=FALSE,
             file ='~/R/Projects/Seurat/Meeting4/DE_clusters/DE_ddSeq_DropSeq.txt')
 ###################################################################################
 # ddSeq vs. Fluidigm
-markers <- FindMarkers(object = mega_seurat, ident.1 = 'ddSeq', 
+markers <- FindMarkers(object = ddDropF, ident.1 = 'ddSeq', 
                        ident.2 = 'Fluidigm', min.pct = 0.25)
-FeaturePlot(object = mega_seurat, features.plot = c("GAPDH","FTH1","CA3","RPL30","TUBA1B", "UBB"), 
+FeaturePlot(object = ddDropF, features.plot = c("GAPDH","FTH1","CA3","RPL30","TUBA1B", "UBB"), 
             cols.use = c("dark grey", "red"), reduction.use = "tsne", dark.theme = TRUE)
 write.table(rownames(markers[markers$p_val_adj<0.05 & abs(markers$avg_logFC)>0.5,]), 
             col.names=FALSE, quote=FALSE, row.names=FALSE,
             file ='~/R/Projects/Seurat/Meeting4/DE_clusters/ddSeq-Fluidigm.txt')
 ###################################################################################
 # DropSeq vs. Fluidigm
-markers <- FindMarkers(object = mega_seurat, ident.1 = 'DropSeq', 
+markers <- FindMarkers(object = ddDropF, ident.1 = 'DropSeq', 
                        ident.2 = 'Fluidigm', min.pct = 0.25)
-FeaturePlot(object = mega_seurat, features.plot = c("TMSB10","OST4","PPIB","TXN","HSPB1", "RPLP1"), 
+FeaturePlot(object = ddDropF, features.plot = c("TMSB10","OST4","PPIB","TXN","HSPB1", "RPLP1"), 
             cols.use = c("dark grey", "red"), reduction.use = "tsne", dark.theme = TRUE)
-FeaturePlot(object = mega_seurat, features.plot = c("MT-CYB","MT-ATP6","MT-ND4","MT-CO2"), 
+FeaturePlot(object = ddDropF, features.plot = c("MT-CYB","MT-ATP6","MT-ND4","MT-CO2"), 
             cols.use = c("dark grey", "red"), reduction.use = "tsne", dark.theme = TRUE)
 write.table(rownames(markers[markers$p_val_adj<0.05 & abs(markers$avg_logFC)>0.5,]), 
             col.names=FALSE, quote=FALSE, row.names=FALSE,
@@ -121,34 +176,34 @@ write.table(rownames(markers[markers$p_val_adj<0.05 & abs(markers$avg_logFC)>0.5
 
 ###################################################################################
 # HEK vs UCH1
-mega_seurat <- SetAllIdent(object = mega_seurat, id = "celltype")
-markers <- FindMarkers(object = mega_seurat, ident.1 = 'HEK', 
+ddDropF <- SetAllIdent(object = ddDropF, id = "celltype")
+markers <- FindMarkers(object = ddDropF, ident.1 = 'HEK', 
                        ident.2 = 'uch1', min.pct = 0.25)
-FeaturePlot(object = mega_seurat, features.plot = c("HSPA1A","LDHB","RPL5","ZNF711"), 
+FeaturePlot(object = ddDropF, features.plot = c("HSPA1A","LDHB","RPL5","ZNF711"), 
             cols.use = c("dark grey", "red"), reduction.use = "tsne", dark.theme = TRUE)
-FeaturePlot(object = mega_seurat, features.plot = c("TMSB4X", "KRT19", "FN1", "HLA-B"), 
+FeaturePlot(object = ddDropF, features.plot = c("TMSB4X", "KRT19", "FN1", "HLA-B"), 
             cols.use = c("dark grey", "red"), reduction.use = "tsne", dark.theme = TRUE)
 write.table(rownames(markers[markers$p_val_adj<0.05 & abs(markers$avg_logFC)>0.5,]), 
             col.names=FALSE, quote=FALSE, row.names=FALSE,
             file ='~/R/Projects/Seurat/Meeting4/DE_clusters/HEK_vs_UCH1.txt')
 ###################################################################################
 # HEK vs UCH2
-markers <- FindMarkers(object = mega_seurat, ident.1 = 'HEK', 
+markers <- FindMarkers(object = ddDropF, ident.1 = 'HEK', 
                        ident.2 = 'uch2', min.pct = 0.25)
-FeaturePlot(object = mega_seurat, features.plot = c("NEFL", "SAT1", "PTMA", "HSPD1"), 
+FeaturePlot(object = ddDropF, features.plot = c("NEFL", "SAT1", "PTMA", "HSPD1"), 
             cols.use = c("dark grey", "red"), reduction.use = "tsne", dark.theme = TRUE)
-FeaturePlot(object = mega_seurat, features.plot = c("TMSB4X", "KRT19", "FN1", "HLA-B"), 
+FeaturePlot(object = ddDropF, features.plot = c("TMSB4X", "KRT19", "FN1", "HLA-B"), 
             cols.use = c("dark grey", "red"), reduction.use = "tsne", dark.theme = TRUE)
 write.table(rownames(markers[markers$p_val_adj<0.05 & abs(markers$avg_logFC)>0.5,]), 
             col.names=FALSE, quote=FALSE, row.names=FALSE,
             file ='~/R/Projects/Seurat/Meeting4/DE_clusters/HEK_vs_UCH2.txt')
 ###################################################################################
 # UCH1 vs UCH2
-markers <- FindMarkers(object = mega_seurat, ident.1 = 'uch1', 
+markers <- FindMarkers(object = ddDropF, ident.1 = 'uch1', 
                        ident.2 = 'uch2', min.pct = 0.25)
-FeaturePlot(object = mega_seurat, features.plot = c("CTSC", "ADIRF", "CA2", "ERC1"), 
+FeaturePlot(object = ddDropF, features.plot = c("CTSC", "ADIRF", "CA2", "ERC1"), 
             cols.use = c("dark grey", "red"), reduction.use = "tsne", dark.theme = TRUE)
-FeaturePlot(object = mega_seurat, features.plot = c("KRT19", "ANXA2", "CCDC80", "CAV1"), 
+FeaturePlot(object = ddDropF, features.plot = c("KRT19", "ANXA2", "CCDC80", "CAV1"), 
             cols.use = c("dark grey", "red"), reduction.use = "tsne", dark.theme = TRUE)
 write.table(rownames(markers[markers$p_val_adj<0.05 & abs(markers$avg_logFC)>0.5,]), 
             col.names=FALSE, quote=FALSE, row.names=FALSE,
@@ -158,13 +213,13 @@ write.table(rownames(markers[markers$p_val_adj<0.05 & abs(markers$avg_logFC)>0.5
 ###################################################################################
 ###################################################################################
 # 293HEK in ddSeq and DropSeq
-mega_seurat <- SetAllIdent(object = mega_seurat, id = "class")
-markers <- FindMarkers(object = mega_seurat, ident.1 = 'ddSeq-HEK', 
+ddDropF <- SetAllIdent(object = ddDropF, id = "class")
+markers <- FindMarkers(object = ddDropF, ident.1 = 'ddSeq-HEK', 
                        ident.2 = 'DropSeq-HEK', min.pct = 0.25)
-FeaturePlot(object = mega_seurat, features.plot = "TSPYL1", cols.use = c("dark grey", "red"), 
+FeaturePlot(object = ddDropF, features.plot = "TSPYL1", cols.use = c("dark grey", "red"), 
             reduction.use = "tsne", dark.theme = TRUE)
 # There appears to be a consistent low-level (1-2) expression of this Y gene in ddSeq 293HEK
-FeaturePlot(object = mega_seurat, features.plot = "RPS4Y1", cols.use = c("dark grey", "red"), 
+FeaturePlot(object = ddDropF, features.plot = "RPS4Y1", cols.use = c("dark grey", "red"), 
             reduction.use = "tsne", dark.theme = TRUE)
 # However this Y gene disappears in all 293HEK and UCH2 samples (as expected)
 write.table(rownames(markers[markers$p_val_adj<0.05,]), 

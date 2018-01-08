@@ -18,7 +18,7 @@ prepSeurat <- function(DGE.data, technology, name) {
   mito.genes <- grep(pattern = "[Mm][Tt]-", x = rownames(x = seuratObj@data), value = TRUE)
   percent.mito <- Matrix::colSums(seuratObj@raw.data[mito.genes, ])/Matrix::colSums(seuratObj@raw.data)
   seuratObj <- AddMetaData(object = seuratObj, metadata = percent.mito, col.name = "percent.mito")
-  destination <- paste('Robj/', technology, '/', name, '_v2.1.Robj', sep="")
+  destination <- paste('Robj/', technology, '/', name, '.Robj', sep="")
   saveRDS(seuratObj, destination)
   print(paste("Seurat object was saved to:", destination, sep=" "))
 }
@@ -42,9 +42,9 @@ ddSeq_CH19_Seq3_N706 <- read.table(file = "ddSeq/Seq3-N706_CH19/Input/Sassi-Seq3
 ddSeq_UCH1_Seq3_N707 <- read.table(file = "ddSeq/Seq3-N707_UCH1/Input/Sassi-Seq3-N707_DGE.txt",
                                    header = TRUE, row.names = 1)
 
-#prepSeurat(ddSeq_293_Seq1_N701, 'ddSeq', 'ddSeq_293_Seq1_N701')
+#prepSeurat(ddSeq_293_Seq1_N701, 'ddSeq', 'ddSeq_293HEK_Seq1_N701')
 prepSeurat(ddSeq_UCH2_Seq1_N704, 'ddSeq', 'ddSeq_UCH2_Seq1_N704')
-#prepSeurat(ddSeq_293_Seq2_N703, 'ddSeq', 'ddSeq_293_Seq2_N703')
+#prepSeurat(ddSeq_293_Seq2_N703, 'ddSeq', 'ddSeq_293HEK_Seq2_N703')
 prepSeurat(ddSeq_UCH1_Seq2_N706, 'ddSeq', 'ddSeq_UCH1_Seq2_N706')
 prepSeurat(ddSeq_CH19_Seq3_N706, 'ddSeq', 'ddSeq_CH19_Seq3_N706')
 prepSeurat(ddSeq_UCH1_Seq3_N707, 'ddSeq', 'ddSeq_UCH1_Seq3_N707')
@@ -62,36 +62,36 @@ DropSeq_DS45_HEK <- read.table(file = "DropSeq/DS45_293ETN/server/DS45-CG_DGE.tx
                                header = TRUE, row.names = 1)
 
 
-DropSeq_DS49_UCH2 <- read.table(file = "DropSeq/DS49_UCH2/server/DS49-UCH2-Seq1_DGE.txt",
+DropSeq_UCH2_DS49 <- read.table(file = "DropSeq/DS49_UCH2/server/DS49-UCH2-Seq1_DGE.txt",
                                 header = TRUE, row.names = 1)
-DropSeq_DS50_UCH1 <- read.table(file = "DropSeq/DS50_UCH1/server/DS50-UCH1_DGE.txt",
+DropSeq_UCH1_DS50 <- read.table(file = "DropSeq/DS50_UCH1/server/DS50-UCH1_DGE.txt",
                                    header = TRUE, row.names = 1)
-DropSeq_DS52_UCH1_RT_ID <- read.table(file = "DropSeq/DS52_UCH1/server/DS52-RT_ID__DGE.txt",
+DropSeq_UCH1_RT_ID_DS52 <- read.table(file = "DropSeq/DS52_UCH1/server/DS52-RT_ID__DGE.txt",
                                 header = TRUE, row.names = 1)
-DropSeq_DS52_UCH1_HS_TB <- read.table(file = "DropSeq/DS52_UCH1/server/DS52-HS_TB__DGE.txt",
+DropSeq_UCH1_HS_TB_DS52 <- read.table(file = "DropSeq/DS52_UCH1/server/DS52-HS_TB__DGE.txt",
                                       header = TRUE, row.names = 1)
 
-#prepSeurat(DropSeq_DS9_HEK, 'DropSeq', 'DropSeq_DS9_HEK')
-#prepSeurat(DropSeq_DS34_HEK, 'DropSeq', 'DropSeq_DS34_HEK')
-#prepSeurat(DropSeq_DS45_HEK, 'DropSeq', 'DropSeq_DS45_HEK')
-prepSeurat(DropSeq_DS49_UCH2, 'DropSeq', 'DropSeq_DS49_UCH2')
-prepSeurat(DropSeq_DS50_UCH1, 'DropSeq', 'DropSeq_DS50_UCH1')
-prepSeurat(DropSeq_DS52_UCH1_RT_ID, 'DropSeq', 'DropSeq_DS52_UCH1_RT_ID')
-prepSeurat(DropSeq_DS52_UCH1_HS_TB, 'DropSeq', 'DropSeq_DS52_UCH1_HS_TB')
+#prepSeurat(DropSeq_DS9_HEK, 'DropSeq', 'DropSeq_293HEK_DS9')
+#prepSeurat(DropSeq_DS34_HEK, 'DropSeq', 'DropSeq_293HEK_DS34')
+#prepSeurat(DropSeq_DS45_HEK, 'DropSeq', 'DropSeq_293HEK_DS45')
+prepSeurat(DropSeq_UCH2_DS49, 'DropSeq', 'DropSeq_UCH2_DS49')
+prepSeurat(DropSeq_UCH1_DS50, 'DropSeq', 'DropSeq_UCH1_DS50')
+prepSeurat(DropSeq_UCH1_RT_ID_DS52, 'DropSeq', 'DropSeq_UCH1_RT_ID_DS52')
+prepSeurat(DropSeq_UCH1_HS_TB_DS52, 'DropSeq', 'DropSeq_UCH1_HS_TB_DS52')
 
 ###########################################################################
 # scRNA-seq QC
 # Go through each Robj created from prepSeurat and filter outliers. Replace the Robj with the filtered version
-seuratObj <- readRDS("Robj/ddSeq/ddSeq_UCH1_Seq3_N707_v2.1.Robj")
+seuratObj <- readRDS("Robj/DropSeq/DropSeq_UCH1_HS_TB_DS52.Robj")
 VlnPlot(object = seuratObj, features.plot = c("nGene", "nUMI", "percent.mito"), nCol = 3)
 GenePlot(object = seuratObj, gene1 = "nUMI", gene2 = "nGene")
 GenePlot(object = seuratObj, gene1 = "nUMI", gene2 = "percent.mito")
 seuratObj <- FilterCells(object = seuratObj, subset.names = c("nGene", "percent.mito"), 
-                         low.thresholds = c(200, -Inf), high.thresholds = c(1100, 0.04))
+                         low.thresholds = c(200, -Inf), high.thresholds = c(6000, 0.1))
 seuratObj <- NormalizeData(object = seuratObj,normalization.method = "LogNormalize", scale.factor = 10000)
 seuratObj <- ScaleData(object = seuratObj, vars.to.regress = c("nUMI", "percent.mito"))
 seuratObj <- FindVariableGenes(object = seuratObj, mean.function = ExpMean, dispersion.function = LogVMR, 
                                do.plot = FALSE, x.low.cutoff = 0.0125, x.high.cutoff = 3, y.cutoff = 0.5)
 length(x = seuratObj@var.genes)
-saveRDS(seuratObj, "Robj/ddSeq/ddSeq_UCH1_Seq3_N707_v2.1.Robj")
+saveRDS(seuratObj, "Robj/DropSeq/DropSeq_UCH1_HS_TB_DS52.Robj")
 
