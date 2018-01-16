@@ -43,9 +43,9 @@ DropSeq <- MergeSeurat(object1 = DropSeq, object2 = DropSeq_UCH2_DS49,
 DropSeq <- MergeSeurat(object1 = DropSeq, object2 = DropSeq_UCH1_DS50, 
                        add.cell.id2 = "DS50")
 DropSeq <- MergeSeurat(object1 = DropSeq, object2 = DropSeq_UCH1_DS52_RT_ID, 
-                       add.cell.id2 = "DS50_RTID")
+                       add.cell.id2 = "DS52_RTID")
 DropSeq <- MergeSeurat(object1 = DropSeq, object2 = DropSeq_UCH1_DS52_HS_TB, 
-                       add.cell.id2 = "DS50_HSTB", project = "DropSeq")
+                       add.cell.id2 = "DS52_HSTB", project = "DropSeq")
 
 table(ddSeq@meta.data$orig.ident)
 table(DropSeq@meta.data$orig.ident)
@@ -56,11 +56,9 @@ table(ddDrop@meta.data$orig.ident)
 saveRDS(ddDrop, file = '~/R/Projects/Seurat/Robj/ddDrop.Robj')
 #ddDrop <- readRDS(file='~/R/Projects/Seurat/Robj/ddDrop.Robj')
 
-# Fix fluidigm
 ddDropF <- MergeSeurat(object1 = ddDrop, object2 = Fluidigm, 
                        add.cell.id2 = "flu")
 table(ddDropF@meta.data$orig.ident)
-
 
 
 # Normalize data to a total of 10,000 molecules 
@@ -76,64 +74,68 @@ ddDropF <- ScaleData(object = ddDropF, vars.to.regress = c("nUMI", "percent.mito
 ddDropF <- RunPCA(object = ddDropF, pc.genes = ddDropF@var.genes, 
                       do.print = TRUE, pcs.print = 1:12, genes.print = 5, pcs.compute = 20)
 PCElbowPlot(object = ddDropF)
+PCAPlot(object = ddDropF, dim.1 = 1, dim.2 = 2)
+ddDropF <- ProjectPCA(object = ddDropF, do.print = FALSE)
+#PCHeatmap(object = ddDropF, pc.use = 1, cells.use = 200, do.balanced = TRUE, label.columns = FALSE)
+#PCHeatmap(object = ddDropF, pc.use = 1:12, cells.use = 200, do.balanced = TRUE, 
+#          label.columns = FALSE, use.full = FALSE)
 #ddDropF <- JackStraw(object = ddDropF, num.replicate = 50, do.print = FALSE)
 #JackStrawPlot(object = ddDropF, PCs = 1:20)
-saveRDS(ddDropF, file = '~/R/Projects/Seurat/Robj/ddFDrop_backup.Robj')
-ddDropF <- readRDS(file='~/R/Projects/Seurat/Robj/ddFDrop_backup.Robj')
 
-
-
-ddDropF <- FindClusters(object = ddDropF, reduction.type = "pca", dims.use = 1:8, 
+ddDropF <- FindClusters(object = ddDropF, reduction.type = "pca", dims.use = 1:11, 
                             resolution = 0.4, save.SNN = TRUE, force.recalc = TRUE)
-ddDropF <- RunTSNE(object = ddDropF, dims.use = 1:8, 
-                       do.fast = TRUE, perplexity = 40)
-t <- TSNEPlot(object = ddDropF, do.return = TRUE, do.label=TRUE)
-t + ggtitle('ddDropF tSNE 19dim 40perplexity 7.5k varGenes v2.1')
-
-ddDropF <- StashIdent(object = ddDropF, save.name = "findClusters")
-# Next, switch the identity class of all cells to reflect replicate ID
-ddDropF <- SetAllIdent(object = ddDropF, id = "orig.ident")
-ddDropF <- StashIdent(object = ddDropF, save.name = "adj.ident")
-ddDropF@meta.data$adj.ident[c(grep("COL0[1-9]", ddDropF@meta.data$adj.ident), # first 10 columns.
-                                  grep("COL10", ddDropF@meta.data$adj.ident) ) ] <-rep("Fluidigm-HEK", 112)
-ddDropF@meta.data$adj.ident[c(grep("COL1[1-9]", ddDropF@meta.data$adj.ident), # last 10 columns.
-                                  grep("COL20", ddDropF@meta.data$adj.ident) ) ] <-rep("Fluidigm-uch1", 118)
-ddDropF <- SetAllIdent(object = ddDropF, id = "adj.ident")
+ddDropF <- RunTSNE(object = ddDropF, dims.use = 1:11, do.fast = TRUE, perplexity = 30)
+t <- TSNEPlot(object = ddDropF, do.return = TRUE, do.label = TRUE, pt.size = 2)
+t + ggtitle('ddDropF tSNE 11dim 30perplexity 7.8k varGenes v2.1') + theme(text = element_text(size=15))
 
 FeaturePlot(object = ddDropF, features.plot = "T", cols.use = c("dark grey", "red"), 
             reduction.use = "tsne", dark.theme = TRUE)
 
-# manually add fluidigm IDs
-ddDropF@meta.data$celltype[2076:2203] <- "HEK"
-ddDropF@meta.data$celltype[2204:2475] <- "uch1"
-levels(ddDropF@meta.data$tech) <- c("ddSeq", "DropSeq", "Fluidigm")
-ddDropF@meta.data$tech[2076:2475] <- "Fluidigm"
+############################################################################################
+# Explore ddDropF
+saveRDS(ddDropF, file = '~/R/Projects/Seurat/Robj/ddFDrop.Robj')
+#ddDropF <- readRDS(file='~/R/Projects/Seurat/Robj/ddFDrop.Robj')
 
-ddDropF@meta.data$class <- as.factor(paste(ddDropF@meta.data$tech, 
-                                     ddDropF@meta.data$celltype, sep='-')) 
+ddDropF <- SetAllIdent(object = ddDropF, id = "orig.ident")
+VlnPlot(object = ddDropF, features.plot = c("nGene", "nUMI", "percent.mito"), 
+        ident.include = c("293HEK", "UCH1", "UCH2")) 
+VlnPlot(object = ddDropF, features.plot = c("nGene", "nUMI", "percent.mito"), 
+        ident.include = c("ddSeq_293HEK_Seq1_N701", "DropSeq_293HEK_NO_DS9", "DropSeq_293HEK_OP_DS34", "DropSeq_293HEK_OP_DS45", "DropSeq_293HEK_OP_DS9", "Fluidigm_293HEK"), x.lab.rot = 1) 
+VlnPlot(object = ddDropF, features.plot = c("nGene", "nUMI", "percent.mito"), 
+        ident.include = c("ddSeq_UCH2_Seq1_N704", "DropSeq_UCH2_DS49"), x.lab.rot = 1) 
+
 
 ############################################################################################
-
-#saveRDS(ddDropF, file = '~/R/Projects/Seurat/Robj/dd_f_drop.Robj')
-#ddDropF <- readRDS(file='~/R/Projects/Seurat/Robj/dd_f_drop.Robj')
-
-######################
+############################################################################################
+############################################################################################
 # Explain DS52 far subcluster
+DS52_cells <- rownames(ddDropF@meta.data[grep("_DS52", ddDropF@meta.data$orig.ident),])
 DS52_mini <- TSNEPlot(object = ddDropF, do.identify = TRUE)
-DS52_big <- TSNEPlot(object = ddDropF, do.identify = TRUE) #careful of the nearby fluidigm
-
+DS52_big_rows <- !DS52_cells %in% DS52_mini
+DS52_big <- DS52_cells[DS52_big_rows]
 ddDropF <- SetIdent(object = ddDropF, cells.use = DS52_mini, ident.use = "DS52_mini")
 ddDropF <- SetIdent(object = ddDropF, cells.use = DS52_big, ident.use = "DS52_big")
-DS52.mark <- FindMarkers(object = ddDropF, ident.1 = 'DS52_mini', ident.2 = 'DS52_big', min.pct = 0.25)
-DS52.mark$genes <- rownames(DS52.mark)
-FeaturePlot(object = ddDropF, features.plot = c("MALAT1", "CSPG4", "OLFML2A", "SLC4A11", "PALLD", "APOE"), 
-            cols.use = c("dark grey", "red"), reduction.use = "tsne", dark.theme = TRUE)
-FeaturePlot(object = ddDropF, features.plot = c("MT-ATP8", "MLEC", "MT-CO1", "DNAJC8", "OMD", "GLIPR1"), cols.use = c("dark grey", "red"), 
+VlnPlot(object = ddDropF, features.plot = c("nGene", "nUMI"), 
+        ident.include = c("DS52_big", "DS52_mini")) 
+DS52.mark <- FindMarkers(object = ddDropF, ident.1 = 'DS52_big', ident.2 = 'DS52_mini', min.pct = 0.25)
+FeaturePlot(object = ddDropF, features.plot = "T", cols.use = c("dark grey", "red"), 
             reduction.use = "tsne", dark.theme = TRUE)
-DS52.geneSet <- arrange(DS52.mark[DS52.mark$p_val_adj<0.05,], p_val_adj)$genes
-write.table(DS52.geneSet, col.names=FALSE, quote=FALSE, row.names=FALSE,
-            file ='~/R/Projects/Seurat/Meeting4/DE_clusters/DS52_top_markers.txt')
-saveRDS(DS52.mark, file = '~/R/Projects/Seurat/Meeting4/DE_clusters/DS52_markers_DF.Robj')
+############################################################################################
+# Explain Seq1 far subcluster
+Seq1_N701_mini <- TSNEPlot(object = ddDropF, do.identify = TRUE)
+Seq1_N701_big <- TSNEPlot(object = ddDropF, do.identify = TRUE) 
+ddDropF <- SetIdent(object = ddDropF, cells.use = Seq1_N701_mini, ident.use = "Seq1_N701_mini")
+ddDropF <- SetIdent(object = ddDropF, cells.use = Seq1_N701_big, ident.use = "Seq1_N701_big")
+VlnPlot(object = ddDropF, features.plot = c("nGene", "nUMI", "percent.mito"), 
+        ident.include = c("Seq1_N701_big", "Seq1_N701_mini"), x.lab.rot = 1) 
+Seq1.mark <- FindMarkers(object = ddDropF, ident.1 = 'Seq1_N701_big', ident.2 = 'Seq1_N701_mini', min.pct = 0.25)
+FeaturePlot(object = ddDropF, features.plot = "T", cols.use = c("dark grey", "red"), 
+            reduction.use = "tsne", dark.theme = TRUE)
+Seq1.mark$genes <- rownames(Seq1.mark)
+Seq1.geneSet <- arrange(Seq1.mark[Seq1.mark$p_val_adj<0.05,], p_val_adj)$genes
+write.table(Seq1.geneSet, col.names=FALSE, quote=FALSE, row.names=FALSE,
+            file ='~/R/Projects/Seurat/Meeting4/DE_clusters/Seq1_top_markers.txt')
+saveRDS(Seq1.mark, file = '~/R/Projects/Seurat/Meeting4/DE_clusters/Seq1_markers_DF.Robj')
 # Generally, the difference between these distant subclusters is that the mini cluster has more instances of
 # expressing genes at low levels but over the entire cluster. While the big cluster has DE genes that are
 # more heterogeneous and spread out at higher expression levels. 
