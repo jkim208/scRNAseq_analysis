@@ -1,4 +1,4 @@
-# Seurat Alignment of Different scRNAseq Technologies
+# Seurat Alignment of ddSeq and DropSeq (293HEK, UCH1, UCH2)
 library(Seurat, lib.loc = '~/R/x86_64-pc-linux-gnu-library/3.4/Seurat2.1')
 library(Matrix)
 library(dplyr)
@@ -23,7 +23,6 @@ DropSeq_UCH1_DS50 <- readRDS("Robj/DropSeq/DropSeq_UCH1_DS50.Robj")
 DropSeq_UCH1_DS52_RT_ID <- readRDS("Robj/DropSeq/DropSeq_UCH1_RT_ID_DS52.Robj")
 DropSeq_UCH1_DS52_HS_TB <- readRDS("Robj/DropSeq/DropSeq_UCH1_HS_TB_DS52.Robj")
 
-Fluidigm <- readRDS(file = '~/R/Projects/Seurat/Fluidigm/Fluidigm_human.Robj')
 #####################################################
 # Merge and compare all samples
 ddSeq <- MergeSeurat(object1 = ddSeq_293HEK_Seq1_N701, object2 = ddSeq_UCH2_Seq1_N704, 
@@ -139,99 +138,5 @@ FeaturePlot(object = align_dd_drop, features.plot = c("T"), cols.use = c("grey",
             reduction.use = "tsne", do.return = TRUE)
 
 saveRDS(align_dd_drop, "~/R/Projects/Seurat/Robj/align_dd_drop.Robj")
-
-
-############################################################################
-############################################################################
-############################################################################
-ddDrop <- MergeSeurat(object1 = ddSeq, object2 = DropSeq, project = "ddDrop")
-ddDrop <- FindVariableGenes(object = ddDrop, mean.function = ExpMean, dispersion.function = LogVMR, 
-                             do.plot = FALSE, x.low.cutoff = 0.0125, x.high.cutoff = 3, y.cutoff = 0.5)
-ddDrop <- ScaleData(object = ddDrop, vars.to.regress = c("nUMI", "percent.mito"))
-
-# With Fluidigm
-# Alignment relies on variable genes to determine source of variation 
-hvg.ddDrop.group <- rownames(x = head(x = ddDrop@hvg.info, n = 2000)) # take 2000 genes with highest dispersion
-hvg.Fluidigm.group <- rownames(x = head(x = Fluidigm@hvg.info, n = 2000))
-hvg.union <- union(x = hvg.ddDrop.group, y = hvg.Fluidigm.group)
-
-ddDrop@meta.data[, "protocol"] <- "ddDrop"
-Fluidigm@meta.data[, "protocol"] <- "Fluidigm"
-
-#####################################################
-
-ddDrop_F <- RunCCA(object = ddDrop, object2 = Fluidigm, genes.use = hvg.union)
-p1 <- DimPlot(object = ddDrop_F, reduction.use = "cca", group.by = "protocol", pt.size = 0.5, 
-              do.return = TRUE) + ggtitle('ddSeq vs DropSeq CCA All Cells')
-p2 <- VlnPlot(object = ddDrop_F, features.plot = "CC1", group.by = "protocol", do.return = TRUE)
-plot_grid(p1, p2) 
-#####################################################
-
-DimHeatmap(object = ddDrop_F, reduction.type = "cca", cells.use = 500, dim.use = 1:10, 
-           do.balanced = TRUE)
-# We leverage CCA to identify cells that cannot be aligned between the two datasets. Briefly, we
-# quantify how well the low-dimensional space defined by CCA explains each cell's expression
-# profile, and compare this to PCA, which is performed on each dataset independently.
-# Cells where the percent variance explained is reduced by a userdefined cutoff in CCA compared 
-# to PCA are therefore defined by sources of variance that are not shared between the datasets.
-# We use a cutoff of 50% for all examples here to identify these cells, and discard them
-# from the alignment workflow
-
-ddDrop_F <- CalcVarExpRatio(object = ddDrop_F, 
-                                 reduction.type = "pca", grouping.var = "protocol", 
-                                 dims.use = 1:8)
-ddDrop_F.preSubset <- ddDrop_F
-
-# Attempt to remove dataset-specific cells (cells that supposedly only appear in 1 condition)
-ddDrop_F <- SubsetData(object = ddDrop_F, 
-                            subset.name = "var.ratio.pca", accept.low = 0.50)
-ddDrop_F.discard <- SubsetData(ddDrop_F.preSubset, subset.name = "var.ratio.pca", accept.high = 0.5)
-ncol(ddDrop_F.discard@data)
-#[1] 67
-length(which(ddDrop_F.discard@meta.data$protocol=='DropSeq'))
-#[1] 42
-ncol(ddDrop_F@data)
-#[1] 2782
-length(which(ddDrop_F.preSubset@meta.data$protocol=='ddSeq'))
-#[1] 754
-length(which(ddDrop_F.preSubset@meta.data$protocol=='DropSeq'))
-#[1] 2095
-100*754/(754+2095) #percent of ddSeq (preSubset) to total
-#[1] 26.47%
-100*67/2782 # percent thrown out cells
-#[1] 2.41%
-#write.table(rownames(ddDrop_F.discard@meta.data), file ='~/R/Projects/Seurat/Seurat_dropped_cells.txt')
-
-ddDrop_F <- AlignSubspace(object = ddDrop_F, reduction.type = "cca", grouping.var = "protocol", 
-                               dims.align = 1:8)
-p1 <- VlnPlot(object = ddDrop_F, features.plot = "ACC1", group.by = "protocol", 
-              do.return = TRUE)
-p2 <- VlnPlot(object = ddDrop_F, features.plot = "ACC2", group.by = "protocol", 
-              do.return = TRUE)
-plot_grid(p1, p2)
-
-#####################################################
-
-ddDrop_F <- RunTSNE(object = ddDrop_F, reduction.use = "cca.aligned", 
-                         dims.use = 1:8, do.fast = TRUE)
-ddDrop_F <- FindClusters(object = ddDrop_F, reduction.type = "cca.aligned", 
-                              dims.use = 1:8, save.SNN = TRUE, force.recalc = TRUE)
-p1 <- TSNEPlot(object = ddDrop_F, group.by = "protocol", do.return = TRUE, pt.size = 0.7)
-p2 <- TSNEPlot(object = ddDrop_F, group.by = "orig.ident", 
-               do.return = TRUE, pt.size = 0.9, do.label=TRUE)
-p3 <- TSNEPlot(object = ddDrop_F, do.return = TRUE, pt.size = 0.7)
-p1 + ggtitle('ddSeq vs DropSeq (Group by Protocol) tSNE v2.1')
-p2 + ggtitle('ddSeq vs DropSeq (Group by Run) tSNE v2.1')
-p3 + ggtitle('ddSeq vs DropSeq (Group by Original Clusters) tSNE v2.1')
-
-FeaturePlot(object = ddDrop_F, features.plot = c("T"), cols.use = c("grey", "red"), 
-            reduction.use = "tsne", do.return = TRUE)
-
-saveRDS(ddDrop_F, "~/R/Projects/Seurat/Robj/ddDrop_F.Robj")
-
-
-
-
-
 
 

@@ -1,3 +1,5 @@
+# Seurat Analysis of ddSeq, DropSeq and Fluidigm (Merge, no alignment)
+
 library(Seurat, lib.loc = '~/R/x86_64-pc-linux-gnu-library/3.4/Seurat2.1')
 library(Matrix)
 library(dplyr)
@@ -69,7 +71,6 @@ ddDropF <- FindVariableGenes(object = ddDropF, mean.function = ExpMean, dispersi
 length(x = ddDropF@var.genes)
 # Regress uninteresting signals out of analysis. nUMI: number of detected molecules per cell
 ddDropF <- ScaleData(object = ddDropF, vars.to.regress = c("nUMI", "percent.mito"))
-
 # Run Dimension reduction
 ddDropF <- RunPCA(object = ddDropF, pc.genes = ddDropF@var.genes, 
                       do.print = TRUE, pcs.print = 1:12, genes.print = 5, pcs.compute = 20)
@@ -229,15 +230,5 @@ write.table(rownames(markers[markers$p_val_adj<0.05,]),
             file ='~/R/Projects/Seurat/Meeting4/DE_clusters/ddSeqvsDropSeq_HEK.txt')
 ###################################################################################
 
-
-
-
-
-
-###################################################################################
-
-
-
-###################################################################################
 
 ###################################################################################

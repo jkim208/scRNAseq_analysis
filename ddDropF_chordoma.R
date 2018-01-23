@@ -1,8 +1,9 @@
 library(Seurat, lib.loc = '~/R/x86_64-pc-linux-gnu-library/3.4/Seurat2.1')
 library(Matrix)
 library(dplyr)
+set.seed(42)
 setwd("~/R/Projects/Seurat")
-# If continuing analysis, skip to line 67
+# Analysis starts from line 67
 
 #####################################################################################
 # Read in files of chordoma data (UCH1 and UCH2)
@@ -110,4 +111,112 @@ DS49.mark <- FindMarkers(object = ddDropF_chor, ident.1 = 'DS49_sm', ident.2 = '
 
 #####################################################
 #####################################################
+#####################################################
+#####################################################
+#####################################################
+# Alignment Section
+#rm(list=ls())
+#####################################################
+ddSeq_chor <- readRDS(file='~/R/Projects/Seurat/Robj/ddDropF_chordoma/ddSeq_chor.Robj')
+DropSeq_chor <- readRDS(file='~/R/Projects/Seurat/Robj/ddDropF_chordoma/DropSeq_chor.Robj')
+
+# Alignment relies on variable genes to determine source of variation 
+hvg.ddSeq_chor.group <- rownames(x = head(x = ddSeq_chor@hvg.info, n = 4000)) # take 2000 genes with highest dispersion
+hvg.DropSeq_chor.group <- rownames(x = head(x = DropSeq_chor@hvg.info, n = 4000))
+hvg.union <- union(x = hvg.ddSeq_chor.group, y = hvg.DropSeq_chor.group)
+
+ddSeq_chor@meta.data[, "protocol"] <- "ddSeq"
+DropSeq_chor@meta.data[, "protocol"] <- "DropSeq"
+
+#####################################################
+align_dd_drop <- RunCCA(object = ddSeq_chor, object2 = DropSeq_chor, genes.use = hvg.union)
+p1 <- DimPlot(object = align_dd_drop, reduction.use = "cca", group.by = "protocol", pt.size = 2,
+              do.return = TRUE) + ggtitle('ddSeq_chor vs DropSeq_chor CCA All Cells')
+p2 <- VlnPlot(object = align_dd_drop, features.plot = "CC1", group.by = "protocol", do.return = TRUE)
+plot_grid(p1 + theme(text = element_text(size=20)), p2 + theme(text = element_text(size=20))) 
+#####################################################
+DimHeatmap(object = align_dd_drop, reduction.type = "cca", cells.use = 200, dim.use = 1:12, 
+           do.balanced = TRUE)
+align_dd_drop <- CalcVarExpRatio(object = align_dd_drop, reduction.type = "pca", grouping.var = "protocol", 
+                                 dims.use = 1:8)
+# We will NOT remove cells (as far as we know, these cells are the same)
+discard <- SubsetData(object = align_dd_drop, subset.name = "var.ratio.pca", accept.high = 0.5)
+#align_dd_drop <- SubsetData(object = align_dd_drop, subset.name = "var.ratio.pca", accept.low = 0.5)
+align_dd_drop <- AlignSubspace(object = align_dd_drop, reduction.type = "cca", grouping.var = "protocol", 
+                               dims.align = 1:8)
+p1 <- VlnPlot(object = align_dd_drop, features.plot = "ACC1", group.by = "protocol", 
+              do.return = TRUE)
+p2 <- VlnPlot(object = align_dd_drop, features.plot = "ACC2", group.by = "protocol", 
+              do.return = TRUE)
+plot_grid(p1, p2)
+#####################################################
+align_dd_drop <- RunTSNE(object = align_dd_drop, reduction.use = "cca.aligned", 
+                         dims.use = 1:8, do.fast = TRUE)
+p1 <- TSNEPlot(object = align_dd_drop, group.by = "cellType", do.return = TRUE, pt.size = 2)
+p1 + ggtitle('Aligned ddDrop (Group by cellType) tSNE v2.1') + theme(text=element_text(size=15))
+
+align_dd_drop@meta.data[ ,"cellType"] <- NULL
+align_dd_drop@meta.data[grep("UCH1", align_dd_drop@meta.data$orig.ident),"cellType"] <- "UCH1"
+align_dd_drop@meta.data[grep("UCH2", align_dd_drop@meta.data$orig.ident),"cellType"] <- "UCH2"
+
+# Group 1 is UCH1 dominant, but there are rogue UCH2 cells worth investigating
+g1 <- TSNEPlot(object = align_dd_drop, group.by = "cellType", do.identify=TRUE, pt.size = 1) # grab UCH1
+g1_uch2 <- g1[grep("DS49|S1_N704", g1)]
+g1_uch1 <- g1[!g1 %in% g1_uch2]
+g2 <- rownames(align_dd_drop@meta.data)[!rownames(align_dd_drop@meta.data) %in% g1]
+align_dd_drop <- SetIdent(object = align_dd_drop, cells.use = g1_uch1, ident.use = "g1_uch1")
+align_dd_drop <- SetIdent(object = align_dd_drop, cells.use = g1_uch2, ident.use = "g1_uch2")
+align_dd_drop <- SetIdent(object = align_dd_drop, cells.use = g2, ident.use = "g2")
+VlnPlot(object = align_dd_drop, features.plot = c("nGene", "nUMI", "percent.mito"), 
+        ident.include = c("g1_uch1", "g1_uch2", "g2")) 
+g1_uch2.mark <- FindMarkers(object = align_dd_drop, ident.1 = 'g1_uch2', ident.2 = 'g2', min.pct = 0.25)
+FeaturePlot(object = align_dd_drop, features.plot = "T", cols.use = c("dark grey", "red"), 
+            reduction.use = "tsne", dark.theme = TRUE)
+
+g.mark <- FindMarkers(object = align_dd_drop, ident.1 = 'g1_uch1', ident.2 = 'g2', min.pct = 0.25)
+# A (-) logFC means that Group 2 has higher avg expression than Group 1
+
+saveRDS(align_dd_drop, file = '~/R/Projects/Seurat/Robj/ddDropF_chordoma/align_ddDrop_chord.Robj')
+#align_dd_drop <- readRDS(file = '~/R/Projects/Seurat/Robj/ddDropF_chordoma/align_ddDrop_chord.Robj')
+
+#####################################################
+# Align with Fluidigm
+align_dd_drop <- FindVariableGenes(object = align_dd_drop, mean.function = ExpMean, dispersion.function = LogVMR, 
+                                   do.plot = TRUE, x.low.cutoff = 0.0125, x.high.cutoff = 3, y.cutoff = 0.5)
+hvg.align_dd_drop.group <- rownames(x = head(x = align_dd_drop@hvg.info, n = 2000)) # take 2000 genes with highest dispersion
+hvg.Fluidigm.group <- rownames(x = head(x = Fluidigm_UCH1@hvg.info, n = 2000))
+hvg.union <- union(x = hvg.align_dd_drop.group, y = hvg.Fluidigm.group)
+
+Fluidigm_UCH1@meta.data[, "protocol"] <- "Fluidigm"
+align_dd_drop@meta.data[, "protocol2"] <- "dd_Drop"
+Fluidigm_UCH1@meta.data[, "protocol2"] <- "Fluidigm2"
+#####################################################
+a_ddDrop_F <- RunCCA(object = align_dd_drop, object2 = Fluidigm_UCH1, genes.use = hvg.union)
+p1 <- DimPlot(object = a_ddDrop_F, reduction.use = "cca", group.by = "protocol", pt.size = 2,
+              do.return = TRUE) + ggtitle('ddDrop_F CCA All Cells')
+p2 <- VlnPlot(object = a_ddDrop_F, features.plot = "CC1", group.by = "protocol", do.return = TRUE)
+plot_grid(p1 + theme(text = element_text(size=20)), p2 + theme(text = element_text(size=20))) 
+#####################################################
+DimHeatmap(object = a_ddDrop_F, reduction.type = "cca", cells.use = 200, dim.use = 4:15, 
+           do.balanced = TRUE)
+a_ddDrop_F <- CalcVarExpRatio(object = a_ddDrop_F, reduction.type = "pca", grouping.var = "protocol2", 
+                                 dims.use = 1:9)
+# We will NOT remove cells (as far as we know, these cells are the same)
+discard <- SubsetData(object = a_ddDrop_F, subset.name = "var.ratio.pca", accept.high = 0.5)
+#align_dd_drop <- SubsetData(object = align_dd_drop, subset.name = "var.ratio.pca", accept.low = 0.5)
+a_ddDrop_F <- AlignSubspace(object = a_ddDrop_F, reduction.type = "cca", grouping.var = "protocol2", 
+                               dims.align = 1:9)
+p1 <- VlnPlot(object = a_ddDrop_F, features.plot = "ACC1", group.by = "protocol2", 
+              do.return = TRUE)
+p2 <- VlnPlot(object = a_ddDrop_F, features.plot = "ACC2", group.by = "protocol2", 
+              do.return = TRUE)
+plot_grid(p1, p2)
+#####################################################
+a_ddDrop_F <- RunTSNE(object = a_ddDrop_F, reduction.use = "cca.aligned", 
+                         dims.use = 1:9, do.fast = TRUE)
+p1 <- TSNEPlot(object = a_ddDrop_F, group.by = "orig.ident", do.return = TRUE, pt.size = 2)
+p1 + ggtitle('Aligned ddDropF tSNE v2.1') + theme(text=element_text(size=15))
+
+##########################################################################################################
+
 
