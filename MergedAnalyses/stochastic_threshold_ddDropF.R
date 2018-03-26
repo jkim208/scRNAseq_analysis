@@ -8,6 +8,10 @@ set.seed(42)
 
 mega_seurat <- readRDS(file='~/R/Projects/Seurat/Robj/dd_f_drop.Robj')
 
+#################################
+# NOTE TO SELF: DID I FORGET TO USE LOG FOR THESE HISTOGRAMS?
+#################################
+
 ############
 # Create indices to track cell type and protocol
 x <- mega_seurat@meta.data$adj.ident
